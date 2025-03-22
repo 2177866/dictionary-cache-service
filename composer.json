@@ -1,0 +1,37 @@
+{
+    "name": "alyakin/dictionary-cache-service",
+    "description": "Dictionary caching based on Redis-compatible stores (Redis, KeyDB, Valkey, etc.).",
+    "keywords": ["redis", "cache", "dictionary", "caching", "keydb", "valkey", "dragonfly", "ardb"],
+    "type": "library",
+    "license": "MIT",
+    "minimum-stability": "dev",
+    "prefer-stable": true,
+    "authors": [
+        {
+            "name": "Alexander Lyakin",
+            "email": "2177866@gmail.com",
+            "role": "Developer"
+        }
+    ],
+    "require": {
+        "php": ">=7.4",
+        "illuminate/redis": "^8.0 || ^9.0 || ^10.0"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^9.0 || ^10.0",
+        "mockery/mockery": "^1.5"
+    },
+    "autoload": {
+        "psr-4": {
+            "Alyakin\\DictionaryCacheService\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Alyakin\\DictionaryCacheService\\Tests\\": "tests/"
+        }
+    },
+    "scripts": {
+        "test": "phpunit"
+    }
+}
