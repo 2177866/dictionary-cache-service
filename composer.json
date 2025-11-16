@@ -14,24 +14,37 @@
         }
     ],
     "require": {
-        "php": "^7.4",
-        "illuminate/redis": "^8.0"
+        "php": "^7.4 || ^8.0"
     },
     "require-dev": {
         "phpunit/phpunit": "^9.0 || ^10.0",
-        "mockery/mockery": "^1.5"
+        "mockery/mockery": "^1.5",
+        "laravel/pint": "^1.25",
+        "phpstan/phpstan": "^2.1"
+    },
+    "suggest": {
+        "ext-redis": "Use the PhpRedisClient adapter when running outside Laravel",
+        "illuminate/redis": "Required for the IlluminateRedisClient adapter or Laravel service provider",
+        "illuminate/support": "Required only when using the Laravel service provider binding"
     },
     "autoload": {
         "psr-4": {
-            "Alyakin\\DictionaryCacheService\\": "src/"
+            "Alyakin\\DictionaryCache\\": "src/"
         }
     },
     "autoload-dev": {
         "psr-4": {
-            "Alyakin\\DictionaryCacheService\\Tests\\": "tests/"
+            "Alyakin\\DictionaryCache\\Tests\\": "tests/"
         }
     },
     "scripts": {
-        "test": "phpunit"
+        "lint": "pint",
+        "stan": "phpstan analyse",
+        "test": "phpunit",
+        "check": [
+            "@lint",
+            "@stan",
+            "@test"
+        ]
     }
 }

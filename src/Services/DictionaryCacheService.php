@@ -1,8 +1,10 @@
 <?php
-namespace Alyakin\DictionaryCache\Service;
 
-use Illuminate\Support\Facades\Redis;
-use Illuminate\Redis\Connections\Connection as RedisConnection;
+namespace Alyakin\DictionaryCache\Services;
+
+use Alyakin\DictionaryCache\Adapters\IlluminateRedisClient;
+use Alyakin\DictionaryCache\Adapters\PhpRedisClient;
+use Alyakin\DictionaryCache\Contracts\RedisClientInterface;
 
 /**
  * Dictionary Cache Service for managing cached data in Redis.
@@ -17,19 +19,22 @@ use Illuminate\Redis\Connections\Connection as RedisConnection;
  * $cache->addItems(['item3', 'item4'])->keepAlive();
  * ```
  *
- * @package App\Services
  * @author Your Name
  * @license MIT
  */
-
-class DictionaryCacheService {
+class DictionaryCacheService
+{
     protected const DEFAULT_TTL = 3600;
+
     private const MAX_CONTEXT_LENGTH = 1000;
+
     private const MAX_KEY_LENGTH = 24;
 
     protected ?string $cacheKey = null;
+
     protected ?\Closure $dataProvider = null;
-    protected RedisConnection $redisInstance;
+
+    protected RedisClientInterface $redisClient;
 
     /**
      * DictionaryCacheService constructor.
@@ -37,20 +42,17 @@ class DictionaryCacheService {
      * Initializes the Redis connection, sets the context and TTL if provided,
      * and assigns a data provider for populating the cache.
      *
-     * @param string|null $contextId Optional unique identifier for the context.
-     *                               If provided, it will generate the cache key.
-     * @param \Closure|null $dataProvider Optional callback to provide data for caching.
-     * @param RedisConnection|null $redisInstance Optional Redis connection instance.
-     *                                            If not provided, the default connection will be used.
+     * @param  string|null  $contextId  Optional unique identifier for the context.
+     *                                  If provided, it will generate the cache key.
+     * @param  \Closure|null  $dataProvider  Optional callback to provide data for caching.
+     * @param  RedisClientInterface|\Redis|\RedisCluster|\Illuminate\Redis\Connections\Connection|null  $redisInstance
+     *                                                                                                                  Optional Redis client or adapter. When null, the service will attempt to auto-detect a Laravel Redis connection.
      *
      * @throws \InvalidArgumentException If an invalid Redis instance is provided.
      */
-    public function __construct(?string $contextId = null, ?\Closure $dataProvider = null, $redisInstance = null) {
-        if ($redisInstance !== null && !($redisInstance instanceof RedisConnection)) {
-            throw new \InvalidArgumentException('Invalid Redis instance.');
-        }
-
-        $this->redisInstance = $redisInstance ?? Redis::connection();
+    public function __construct(?string $contextId = null, ?\Closure $dataProvider = null, $redisInstance = null)
+    {
+        $this->redisClient = $this->resolveRedisClient($redisInstance);
 
         if ($contextId) {
             $this->setContext($contextId);
@@ -65,30 +67,29 @@ class DictionaryCacheService {
     /**
      * Sets the context ID and generates the cache key.
      *
-     * @param string $contextId Unique identifier for the context.
-     * @param string $key Identifier prefix for the cache key (default: "dictionary").
+     * @param  string  $contextId  Unique identifier for the context.
+     * @param  string  $key  Identifier prefix for the cache key (default: "dictionary").
      *
      * @throws \InvalidArgumentException If the context ID or key is invalid.
-     *
-     * @return self
      */
-    public function setContext(string $contextId, string $key = "dictionary"): self {
+    public function setContext(string $contextId, string $key = 'dictionary'): self
+    {
         $contextId = trim($contextId);
         $key = trim($key);
 
         if ($contextId === '' || strlen($contextId) > self::MAX_CONTEXT_LENGTH) {
-            throw new \InvalidArgumentException('Invalid context ID: must be 1-' . self::MAX_CONTEXT_LENGTH . ' characters long.');
+            throw new \InvalidArgumentException('Invalid context ID: must be 1-'.self::MAX_CONTEXT_LENGTH.' characters long.');
         }
 
         if ($key === '' || strlen($key) > self::MAX_KEY_LENGTH) {
-            throw new \InvalidArgumentException('Invalid key: must be 1-' . self::MAX_KEY_LENGTH . ' characters long.');
+            throw new \InvalidArgumentException('Invalid key: must be 1-'.self::MAX_KEY_LENGTH.' characters long.');
         }
 
-        if (!preg_match('/^[a-zA-Z0-9_-]+$/', $contextId)) {
+        if (! preg_match('/^[a-zA-Z0-9_-]+$/', $contextId)) {
             throw new \InvalidArgumentException('Context ID contains invalid characters. Allowed: a-z, A-Z, 0-9, _, -');
         }
 
-        if (!preg_match('/^[a-zA-Z0-9_-]+$/', $key)) {
+        if (! preg_match('/^[a-zA-Z0-9_-]+$/', $key)) {
             throw new \InvalidArgumentException('Key contains invalid characters. Allowed: a-z, A-Z, 0-9, _, -');
         }
 
@@ -102,12 +103,12 @@ class DictionaryCacheService {
      *
      * The provided Closure must return an array of items to be stored in Redis.
      *
-     * @param \Closure $dataProvider Function that returns an array of items.
-     *
-     * @return self
+     * @param  \Closure  $dataProvider  Function that returns an array of items.
      */
-    public function setDataProvider(\Closure $dataProvider): self {
+    public function setDataProvider(\Closure $dataProvider): self
+    {
         $this->dataProvider = $dataProvider;
+
         return $this;
     }
 
@@ -117,20 +118,22 @@ class DictionaryCacheService {
      * Stores the TTL separately in Redis under a `{cacheKey}_ttl` key.
      * If the provided TTL is less than 1 second, an exception is thrown.
      *
-     * @param int $ttl The TTL value in seconds.
+     * @param  int  $ttl  The TTL value in seconds.
      *
      * @throws \InvalidArgumentException If TTL is less than 1 second.
-     *
-     * @return self
      */
-    public function setTTL(int $ttl): self {
-        $this->requireCacheKey();
+    public function setTTL(int $ttl): self
+    {
+        $cacheKey = $this->requireCacheKey();
 
         if ($ttl < 1) {
             throw new \InvalidArgumentException('TTL must be at least 1 second.');
         }
 
-        $this->redisInstance->set($this->cacheKey.'_ttl', $ttl);
+        $this->redisClient->set($cacheKey.'_ttl', $ttl);
+        if ($this->redisClient->exists($cacheKey)) {
+            $this->redisClient->expire($cacheKey, $ttl);
+        }
 
         return $this;
     }
@@ -142,8 +145,17 @@ class DictionaryCacheService {
      *
      * @return int The TTL value in seconds.
      */
-    public function getTTL(): int {
-        return (int) ($this->redisInstance->get($this->cacheKey.'_ttl') ?? self::DEFAULT_TTL);
+    public function getTTL(): int
+    {
+        $cacheKey = $this->requireCacheKey();
+        $storedTtl = $this->redisClient->get($cacheKey.'_ttl');
+        $ttl = is_numeric($storedTtl) ? (int) $storedTtl : self::DEFAULT_TTL;
+
+        if ($ttl < 1) {
+            throw new \InvalidArgumentException('TTL must be at least 1 second.');
+        }
+
+        return $ttl;
     }
 
     /**
@@ -155,25 +167,25 @@ class DictionaryCacheService {
      *
      * @throws \RuntimeException If the data provider is not set.
      * @throws \UnexpectedValueException If the data provider does not return an array.
-     *
-     * @return void
      */
-    public function preload(): void {
-        $this->requireCacheKey();
+    public function preload(): void
+    {
+        $cacheKey = $this->requireCacheKey();
 
-        if (!$this->dataProvider) {
-            throw new \RuntimeException("DataProvider is not set. Use setDataProvider before.");
+        if (! $this->dataProvider) {
+            throw new \RuntimeException('DataProvider is not set. Use setDataProvider before.');
         }
 
-        if (!$this->redisInstance->exists($this->cacheKey)) {
+        if (! $this->redisClient->exists($cacheKey)) {
             $data = ($this->dataProvider)();
 
-            if (!is_array($data)) {
-                throw new \UnexpectedValueException("Data provider must return an array.");
+            if (! is_array($data)) {
+                throw new \UnexpectedValueException('Data provider must return an array.');
             }
 
-            if (!empty($data)) {
-                $this->redisInstance->sadd($this->cacheKey, ...$data);
+            if (! empty($data)) {
+                $items = $this->normalizeValues($data);
+                $this->redisClient->sadd($cacheKey, ...$items);
                 $this->keepAlive();
             }
         }
@@ -183,13 +195,15 @@ class DictionaryCacheService {
      * Checks if a specific item exists in the cache set.
      * Ensures the cache is initialized before performing the check.
      *
-     * @param string $itemId The item ID to check.
-     *
+     * @param  string  $itemId  The item ID to check.
      * @return bool `true` if the item exists in the Redis set, `false` otherwise.
      */
-    public function hasItem(string $itemId): bool {
+    public function hasItem(string $itemId): bool
+    {
         $this->ensureCacheInitialized();
-        return $this->redisInstance->sismember($this->cacheKey, $itemId);
+        $cacheKey = $this->requireCacheKey();
+
+        return $this->redisClient->sismember($cacheKey, $itemId);
     }
 
     /**
@@ -199,21 +213,30 @@ class DictionaryCacheService {
      * Otherwise, it creates a temporary Redis set and uses `sinter()` to find matches.
      * The temporary set is deleted after the operation.
      *
-     * @param string[] $itemIds The list of item IDs to check.
-     *
+     * @param  string[]  $itemIds  The list of item IDs to check.
      * @return string[] The list of existing item IDs.
      */
-    public function hasItems(array $itemIds): array {
+    public function hasItems(array $itemIds): array
+    {
         $this->ensureCacheInitialized();
 
-        if (!$this->redisInstance->exists($this->cacheKey) || empty($itemIds)) {
+        $cacheKey = $this->requireCacheKey();
+
+        if (! $this->redisClient->exists($cacheKey) || empty($itemIds)) {
             return [];
         }
 
-        $tempKey = "tmp_{$this->cacheKey}_" . bin2hex(random_bytes(8));
-        $this->redisInstance->sadd($tempKey, ...$itemIds);
-        $existingIds = $this->redisInstance->sinter($this->cacheKey, $tempKey);
-        $this->redisInstance->del($tempKey);
+        $tempKey = "tmp_{$cacheKey}_".bin2hex(random_bytes(8));
+        $existingIds = [];
+
+        try {
+            $items = $this->normalizeValues($itemIds);
+            $this->redisClient->sadd($tempKey, ...$items);
+            $this->redisClient->expire($tempKey, 5);
+            $existingIds = $this->redisClient->sinter($cacheKey, $tempKey);
+        } finally {
+            $this->redisClient->del($tempKey);
+        }
 
         return $existingIds;
     }
@@ -225,10 +248,12 @@ class DictionaryCacheService {
      *
      * @return string[] The list of all cached items.
      */
-    public function getAllItems(): array {
-        $this->requireCacheKey();
+    public function getAllItems(): array
+    {
+        $cacheKey = $this->requireCacheKey();
         $this->ensureCacheInitialized();
-        return $this->redisInstance->smembers($this->cacheKey);
+
+        return $this->redisClient->smembers($cacheKey);
     }
 
     /**
@@ -236,9 +261,11 @@ class DictionaryCacheService {
      *
      * @return bool `true` if the cache key exists, `false` otherwise.
      */
-    public function exists(): bool {
-        $this->requireCacheKey();
-        return $this->redisInstance->exists($this->cacheKey);
+    public function exists(): bool
+    {
+        $cacheKey = $this->requireCacheKey();
+
+        return $this->redisClient->exists($cacheKey);
     }
 
     /**
@@ -246,16 +273,16 @@ class DictionaryCacheService {
      *
      * If the provided array is empty, the method does nothing.
      *
-     * @param string[] $items The list of items to add.
-     *
-     * @return self
+     * @param  string[]  $items  The list of items to add.
      */
-    public function addItems(array $items): self {
-        $this->requireCacheKey();
+    public function addItems(array $items): self
+    {
+        $cacheKey = $this->requireCacheKey();
         $this->ensureCacheInitialized();
 
-        if (!empty($items)) {
-            $this->redisInstance->sadd($this->cacheKey, ...$items);
+        if (! empty($items)) {
+            $values = $this->normalizeValues($items);
+            $this->redisClient->sadd($cacheKey, ...$values);
         }
 
         return $this;
@@ -266,16 +293,15 @@ class DictionaryCacheService {
      *
      * If the item does not exist, the method does nothing.
      *
-     * @param string $item The item ID to remove.
-     *
-     * @return self
+     * @param  string  $item  The item ID to remove.
      */
-    public function removeItem(string $item): self {
-        $this->requireCacheKey();
+    public function removeItem(string $item): self
+    {
+        $cacheKey = $this->requireCacheKey();
         $this->ensureCacheInitialized();
 
         if ($item !== '') {
-            $this->redisInstance->srem($this->cacheKey, $item);
+            $this->redisClient->srem($cacheKey, $item);
         }
 
         return $this;
@@ -287,11 +313,10 @@ class DictionaryCacheService {
      * This method does not change the TTL value but refreshes its countdown.
      *
      * @throws \InvalidArgumentException If the retrieved TTL is invalid (less than 1 second).
-     *
-     * @return self
      */
-    public function keepAlive(): self {
-        $this->requireCacheKey();
+    public function keepAlive(): self
+    {
+        $cacheKey = $this->requireCacheKey();
         $this->ensureCacheInitialized();
 
         $ttl = $this->getTTL();
@@ -300,7 +325,7 @@ class DictionaryCacheService {
             throw new \InvalidArgumentException('TTL must be at least 1 second.');
         }
 
-        $this->redisInstance->expire($this->cacheKey, $ttl);
+        $this->redisClient->expire($cacheKey, $ttl);
 
         return $this;
     }
@@ -311,41 +336,42 @@ class DictionaryCacheService {
      * This does not remove TTL settings, only the cached items.
      *
      * @throws \Exception If the cache key is not set.
-     *
-     * @return void
      */
-    public function clear(): void {
-        $this->requireCacheKey();
-        $this->redisInstance->del($this->cacheKey);
+    public function clear(): void
+    {
+        $cacheKey = $this->requireCacheKey();
+        $this->redisClient->del($cacheKey);
     }
 
     /**
      * Ensures that the cache is initialized.
      *
      * If the cache key does not exist in Redis, it will be populated using `preload()`.
-     *
-     * @return void
      */
-    protected function ensureCacheInitialized(): void {
-        $this->requireCacheKey();
+    protected function ensureCacheInitialized(): void
+    {
+        $cacheKey = $this->requireCacheKey();
 
-        if (!$this->redisInstance->exists($this->cacheKey)) {
-            $this->preload();
+        if ($this->redisClient->exists($cacheKey) || ! $this->dataProvider) {
+            return;
         }
+
+        $this->preload();
     }
 
     /**
      * Ensures that a cache key is set before executing operations that require it.
      *
      * @throws \InvalidArgumentException If the cache key is not defined.
-     *
-     * @return void
      */
-    private function requireCacheKey(): void {
-        if (!$this->cacheKey) {
+    private function requireCacheKey(): string
+    {
+        if (! $this->cacheKey) {
             $caller = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 2)[1]['function'] ?? 'unknown method';
             throw new \InvalidArgumentException("Undefined cacheKey. Use setContext() before calling {$caller}().");
         }
+
+        return $this->cacheKey;
     }
 
     /**
@@ -353,7 +379,81 @@ class DictionaryCacheService {
      *
      * @return bool `true` if a cache key is defined, `false` otherwise.
      */
-    public function hasCacheKey(): bool {
+    public function hasCacheKey(): bool
+    {
         return isset($this->cacheKey);
+    }
+
+    /**
+     * @param  array<mixed>  $values
+     * @return string[]
+     */
+    private function normalizeValues(array $values): array
+    {
+        return array_map(
+            static function (mixed $value): string {
+                if (is_string($value) || is_int($value) || is_float($value) || is_bool($value) || $value === null) {
+                    return (string) $value;
+                }
+
+                if ($value instanceof \Stringable) {
+                    return (string) $value;
+                }
+
+                throw new \UnexpectedValueException('Cache values must be scalar or stringable.');
+            },
+            $values
+        );
+    }
+
+    /**
+     * @param  mixed  $redisInstance
+     */
+    private function resolveRedisClient($redisInstance): RedisClientInterface
+    {
+        if ($redisInstance instanceof RedisClientInterface) {
+            return $redisInstance;
+        }
+
+        if ($redisInstance instanceof \Redis || $redisInstance instanceof \RedisCluster) {
+            return new PhpRedisClient($redisInstance);
+        }
+
+        if ($redisInstance !== null
+            && class_exists(\Illuminate\Redis\Connections\Connection::class)
+            && $redisInstance instanceof \Illuminate\Redis\Connections\Connection
+        ) {
+            return new IlluminateRedisClient($redisInstance);
+        }
+
+        if ($redisInstance === null) {
+            $autoDetected = $this->detectDefaultRedisClient();
+
+            if ($autoDetected !== null) {
+                return $autoDetected;
+            }
+
+            throw new \InvalidArgumentException(
+                'Redis client is required. Provide RedisClientInterface, native \Redis instance, or Laravel Redis connection.'
+            );
+        }
+
+        throw new \InvalidArgumentException(sprintf(
+            'Unsupported Redis client instance: %s',
+            get_debug_type($redisInstance)
+        ));
+    }
+
+    private function detectDefaultRedisClient(): ?RedisClientInterface
+    {
+        if (! class_exists(\Illuminate\Support\Facades\Redis::class)
+            || ! class_exists(\Illuminate\Redis\Connections\Connection::class)
+        ) {
+            return null;
+        }
+
+        $connection = \Illuminate\Support\Facades\Redis::connection();
+
+        return new IlluminateRedisClient($connection);
     }
 }
