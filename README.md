@@ -2,7 +2,7 @@
 
 [![Latest Stable Version](https://img.shields.io/packagist/v/alyakin/dictionary-cache-service.svg?style=flat-square)](https://packagist.org/packages/alyakin/dictionary-cache-service)
 [![Total Downloads](https://img.shields.io/packagist/dt/alyakin/dictionary-cache-service.svg?style=flat-square)](https://packagist.org/packages/alyakin/dictionary-cache-service)
-![Laravel 8+](https://img.shields.io/badge/Laravel-8%2B-red.svg?style=flat-square)
+[![CI Status](https://github.com/2177866/dictionary-cache-service/actions/workflows/ci.yml/badge.svg)](https://github.com/2177866/dictionary-cache-service/actions/workflows/ci.yml)
 ![PHP 7.4+](https://img.shields.io/badge/PHP-7.4%2B-blue.svg?style=flat-square)
 ![MIT License](https://img.shields.io/badge/license-MIT-green.svg?style=flat-square)
 
@@ -47,6 +47,19 @@ Available adapters:
 - Custom implementations - implement the interface if you rely on another Redis library.
 
 ## Examples
+
+```mermaid
+flowchart LR
+    A[Provider / manual wiring] --> B(DictionaryCacheService)
+    B --> C[setContext / setTTL]
+    B --> D[setDataProvider]
+    D -->|optional| E[(Data source)]
+    B --> F[RedisClientInterface]
+    F --> G[IlluminateRedisClient]
+    F --> H[PhpRedisClient]
+    G --> I[(Laravel Redis connection)]
+    H --> J[(Redis / KeyDB / Valkey / Dragonfly)]
+```
 
 ### Laravel: warm a dictionary from the database
 
@@ -245,10 +258,9 @@ The service works with **Redis-compatible** databases supported by Laravel's Red
 
 ## Requirements
 
-The package requires:
 - PHP **7.4+**
-- Laravel **8+**
 - Redis-compatible storage
+- Laravel **8+** _(optional, only for automatic service provider registration)_
 
 ## Development
 
