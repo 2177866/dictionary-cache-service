@@ -241,7 +241,7 @@ The service works with **Redis-compatible** databases supported by Laravel's Red
 - **KeyDB**
 - **Valkey**
 - **Dragonfly** (tested with Redis-compatible API)
-- **Ardb**
+- **Ardb** (not covered by CI; no maintained public Docker image available)
 
 ## Requirements
 
@@ -265,7 +265,7 @@ Individual commands:
 - `composer stan` – PHPStan level 9.
 - `composer test` – PHPUnit (unit + integration; requires a running Redis-compatible server and ext-redis).
 
-GitHub Actions (`.github/workflows/ci.yml`) runs a matrix of PHP 8.1–8.3 against Redis/KeyDB/Valkey/Dragonfly/Ardb, so every pull request is tested in multiple environments automatically.
+GitHub Actions (`.github/workflows/ci.yml`) runs a matrix of PHP 8.1–8.3 against Redis/KeyDB/Valkey/Dragonfly. Ardb is excluded because there is no publicly available Docker image; test it manually if your project relies on it.
 
 ## Want to Contribute?
 
