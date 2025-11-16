@@ -1,0 +1,26 @@
+name: Feature request
+description: Suggest an improvement or new capability
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: Describe the feature and who would benefit from it.
+    validations:
+      required: true
+  - type: textarea
+    id: motivation
+    attributes:
+      label: Motivation
+      description: Why is the current behavior insufficient? What problem does this solve?
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives
+      description: List any alternative solutions or workarounds you considered.
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional context
+      description: Links, screenshots, or anything else that helps explain the request.

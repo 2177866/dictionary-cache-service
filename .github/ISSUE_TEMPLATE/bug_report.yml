@@ -1,0 +1,48 @@
+name: Bug report
+description: Report a problem with Dictionary Cache Service
+labels: ["bug"]
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: What happened? What did you expect instead?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Provide a minimal code sample or list the exact steps.
+      placeholder: |
+        1. ...
+        2. ...
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Package version / tag
+      placeholder: v1.0.0
+  - type: dropdown
+    id: php
+    attributes:
+      label: PHP version
+      options:
+        - 7.4
+        - 8.0
+        - 8.1
+        - 8.2
+        - 8.3
+        - Other
+  - type: input
+    id: driver
+    attributes:
+      label: Redis-compatible driver
+      placeholder: Redis 7 / Valkey / KeyDB / Dragonfly / Ardb / ...
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / stack traces
+      description: Paste error output if applicable.
+      render: shell

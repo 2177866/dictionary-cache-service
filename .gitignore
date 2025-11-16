@@ -1,0 +1,13 @@
+# Dependencies
+/vendor/
+/composer.lock
+
+# Build / cache
+/build/
+/.phpunit.result.cache
+/phpstan.log
+
+# IDE / OS files
+.DS_Store
+/.idea/
+.vscode/

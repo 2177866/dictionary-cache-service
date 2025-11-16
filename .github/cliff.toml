@@ -1,0 +1,56 @@
+[changelog]
+header = "# Changelog\n"
+body = """
+{% for release in releases %}
+## {{ release.version | default(value="Unreleased") }} - {{ release.timestamp | date(format="%Y-%m-%d") | default(value="Unreleased") }}
+{% if release.commit_id %}
+([{{ release.commit_id | truncate(length=7, end="") }}](https://github.com/{{ repository }}/commit/{{ release.commit_id }}))
+{% endif %}
+{% if release.notes %}
+{{ release.notes }}
+{% endif %}
+{% for group, commits in release.groups %}
+### {{ group | default(value="Changes") }}
+{% for commit in commits %}
+- {{ commit.message | trim }}
+{% endfor %}
+{% endfor %}
+
+{% if release.merges %}
+### Merged
+{% for merge in release.merges %}
+- {{ merge.message }}
+{% endfor %}
+{% endif %}
+{% endfor %}
+"""
+trim = true
+
+[git]
+tag_pattern = "v*"
+conventional_commits = false
+filter_unconventional = false
+
+[[git.commit_preprocessors]]
+pattern = '\(#([0-9]+)\)'
+replace = '(#${1})'
+
+[[git.commit_preprocessors]]
+pattern = '\[(ci|chore)\]'
+replace = ''
+
+[[changelog.group]]
+title = "Features"
+regex = "(?i)(feat|feature)"
+
+[[changelog.group]]
+title = "Fixes"
+regex = "(?i)(fix|bug)"
+
+[[changelog.group]]
+title = "Performance"
+regex = "(?i)perf"
+
+[[changelog.group]]
+title = "Changes"
+regex = ".*"
