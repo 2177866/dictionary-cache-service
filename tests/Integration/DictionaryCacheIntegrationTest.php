@@ -11,20 +11,22 @@ use PHPUnit\Framework\TestCase;
 /**
  * @requires extension redis
  */
-final class DictionaryCacheIntegrationTest extends TestCase {
+final class DictionaryCacheIntegrationTest extends TestCase
+{
     private const CONTEXT = 'integration_suite';
 
     private \Redis $client;
 
-    protected function setUp(): void {
-        if (!extension_loaded('redis')) {
+    protected function setUp(): void
+    {
+        if (! extension_loaded('redis')) {
             self::markTestSkipped('ext-redis is required for integration tests.');
         }
 
         $host = getenv('REDIS_HOST') ?: '127.0.0.1';
         $port = (int) (getenv('REDIS_PORT') ?: 6379);
 
-        $this->client = new \Redis();
+        $this->client = new \Redis;
         $connected = @$this->client->connect($host, $port, 2.0);
 
         if (! $connected) {
@@ -35,14 +37,16 @@ final class DictionaryCacheIntegrationTest extends TestCase {
         $this->client->flushDB();
     }
 
-    protected function tearDown(): void {
+    protected function tearDown(): void
+    {
         if (isset($this->client) && $this->client->isConnected()) {
             $this->client->flushDB();
             $this->client->close();
         }
     }
 
-    public function testDictionaryWorkflowAgainstRealServer(): void {
+    public function test_dictionary_workflow_against_real_server(): void
+    {
         $service = new DictionaryCacheService(
             contextId: self::CONTEXT,
             dataProvider: static fn (): array => ['101', '202'],

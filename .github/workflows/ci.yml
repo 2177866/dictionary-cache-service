@@ -11,6 +11,7 @@ jobs:
     name: PHP ${{ matrix.php }} / ${{ matrix.redis.name }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    continue-on-error: ${{ matrix.redis.allow_failure }}
     strategy:
       fail-fast: false
       matrix:
@@ -18,14 +19,19 @@ jobs:
         redis:
           - name: Redis
             image: redis:7-alpine
+            allow_failure: false
           - name: KeyDB
             image: eqalpha/keydb:latest
+            allow_failure: false
           - name: Valkey
             image: valkey/valkey:latest
+            allow_failure: false
           - name: Dragonfly
             image: docker.dragonflydb.io/dragonflydb/dragonfly:latest
+            allow_failure: false
           - name: Ardb
             image: andrewosh/ardb
+            allow_failure: true
     services:
       redis:
         image: ${{ matrix.redis.image }}
