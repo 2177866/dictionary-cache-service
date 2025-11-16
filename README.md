@@ -61,6 +61,25 @@ flowchart LR
     H --> J[(Redis / KeyDB / Valkey / Dragonfly)]
 ```
 
+```mermaid
+sequenceDiagram
+    participant Client
+    participant Cache as DictionaryCacheService
+    participant Provider as Data provider / DB
+
+    Client->>Cache: hasItems(ids)
+    Cache-->>Client: cache miss (not initialized)
+    Cache->>Provider: preload() fetch dataset
+    Provider-->>Cache: array of items
+    Cache-->>Client: first response (stored in Redis)
+
+    Client->>Cache: hasItems(ids)
+    Cache-->>Client: hit from Redis (no DB call)
+
+    Client->>Cache: hasItems(ids)
+    Cache-->>Client: hit from Redis (microseconds latency)
+```
+
 ### Laravel: warm a dictionary from the database
 
 Register the bundled service provider (auto-discovered in Laravel packages) and resolve the service from the container. The provider injects an `IlluminateRedisClient` that wraps `Redis::connection()`.
